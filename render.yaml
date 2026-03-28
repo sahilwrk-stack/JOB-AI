@@ -1,0 +1,102 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Render Deployment Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# Deploys:
+#   1. PostgreSQL database (managed)
+#   2. FastAPI backend (web service)
+#
+# Deploy steps:
+#   1. Push repo to GitHub
+#   2. Create new account on render.com
+#   3. New → Blueprint → connect repo → select this file
+#   4. Fill in env var values in the Render dashboard
+# ──────────────────────────────────────────────────────────────────────────────
+
+databases:
+  - name: omniscient-db
+    databaseName: agentdb
+    user: omniscient
+    plan: free           # free tier: 1 GB storage, 1 connection, shared CPU
+    region: singapore    # closest to India; options: oregon, ohio, frankfurt, singapore
+
+services:
+  # ── FastAPI Web Service ──────────────────────────────────────────────────────
+  - type: web
+    name: omniscient-ai-backend
+    runtime: python
+    region: singapore
+    plan: free            # free tier: 512 MB RAM, 0.1 CPU, sleeps after 15 min inactivity
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      gunicorn backend.api:app
+        --workers 2
+        --worker-class uvicorn.workers.UvicornWorker
+        --bind 0.0.0.0:$PORT
+        --timeout 120
+        --keep-alive 5
+        --log-level info
+    healthCheckPath: /health
+    autoDeploy: true      # auto-redeploy on git push
+
+    envVars:
+      # ── Database (auto-filled from the database above) ──────────────────────
+      - key: DATABASE_URL
+        fromDatabase:
+          name: omniscient-db
+          property: connectionString
+
+      # ── LLM — Ollama (point URL at your Ollama host; cloud Groq/OpenAI not used) ─
+      - key: LLM_PROVIDER
+        value: ollama
+      - key: LLM_MODEL
+        value: llama3.2
+      - key: OLLAMA_BASE_URL
+        sync: false        # e.g. https://your-ollama-host/v1
+      - key: GROQ_API_KEY
+        sync: false        # optional legacy; unused
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # ── Job Board APIs ───────────────────────────────────────────────────────
+      - key: RAPIDAPI_KEY
+        sync: false
+      - key: ADZUNA_APP_ID
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false
+      - key: ADZUNA_COUNTRY
+        value: in
+
+      # ── Candidate Profile ────────────────────────────────────────────────────
+      - key: CANDIDATE_NAME
+        sync: false
+      - key: CANDIDATE_EMAIL
+        sync: false
+      - key: CANDIDATE_PHONE
+        sync: false
+      - key: CANDIDATE_LOCATION
+        value: Bangalore
+      - key: CANDIDATE_GITHUB
+        sync: false
+      - key: CANDIDATE_LINKEDIN
+        sync: false
+
+      # ── CORS (set to your Netlify/Vercel frontend URL) ───────────────────────
+      - key: CORS_ORIGINS
+        sync: false        # e.g. https://your-app.netlify.app,https://your-app.vercel.app
+
+      # ── App Settings ─────────────────────────────────────────────────────────
+      - key: AUTO_APPLY_ENABLED
+        value: "false"
+      - key: APPLY_CONFIDENCE_THRESHOLD
+        value: "85"
+      - key: REVIEW_CONFIDENCE_THRESHOLD
+        value: "60"
+      - key: MAX_JOBS_PER_RUN
+        value: "50"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHONPATH
+        value: /opt/render/project/src

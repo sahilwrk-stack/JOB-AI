@@ -1,0 +1,32 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Railway Deployment Config
+# https://docs.railway.app/reference/config-as-code
+#
+# Deploy steps:
+#   1. Push repo to GitHub
+#   2. Sign up at railway.app
+#   3. New Project → Deploy from GitHub repo
+#   4. Railway auto-detects this file
+#   5. Add PostgreSQL plugin: "+ Add Service" → Database → PostgreSQL
+#      Railway auto-sets DATABASE_URL in your service environment
+#   6. Set secret env vars in Railway dashboard (API keys, etc.)
+# ──────────────────────────────────────────────────────────────────────────────
+
+[build]
+builder  = "NIXPACKS"           # Railway's smart auto-builder
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "gunicorn backend.api:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120 --log-level info"
+healthcheckPath    = "/health"
+healthcheckTimeout = 30
+restartPolicyType  = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+[environments.production]
+# Railway injects DATABASE_URL automatically when you add a PostgreSQL plugin
+# Other vars must be set via dashboard or railway CLI:
+#   railway variables set GROQ_API_KEY=<from_dashboard> LLM_PROVIDER=groq ...
+
+[environments.staging]
+startCommand = "uvicorn backend.api:app --host 0.0.0.0 --port $PORT --log-level debug"

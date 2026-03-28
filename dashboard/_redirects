@@ -1,0 +1,7 @@
+# Netlify _redirects — API proxy
+# All /api/* calls from the dashboard are forwarded to the FastAPI backend.
+# Replace the URL below with your actual Render or Railway backend URL.
+# This file is auto-included because publish dir = "dashboard"
+
+/api/*  https://omniscient-ai-backend.onrender.com/api/:splat  200
+/*      /index.html                                             200

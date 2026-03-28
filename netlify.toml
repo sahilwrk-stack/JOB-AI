@@ -1,0 +1,62 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Netlify Deployment Config (Frontend)
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+#
+# This deploys ONLY the dashboard/index.html as a static site.
+# All /api/* calls are transparently proxied to your Render/Railway backend.
+#
+# Deploy steps:
+#   1. Sign up at netlify.com
+#   2. New site → Import from Git → select your repo
+#   3. Set publish directory to "dashboard"
+#   4. Set BACKEND_URL in Netlify env vars (Site settings → Env vars):
+#        BACKEND_URL = https://omniscient-ai-backend.onrender.com
+#   5. Deploy site
+# ──────────────────────────────────────────────────────────────────────────────
+
+[build]
+  base    = "."
+  publish = "dashboard"
+  # No build command needed — pure static HTML
+  # command = ""
+
+[build.environment]
+  # Set BACKEND_URL in Netlify Dashboard → Site configuration → Environment variables
+  # It will be used in the _redirects proxy rule below
+  NODE_VERSION = "18"
+
+# ── Headers ───────────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ── Redirects — proxy /api/* to FastAPI backend ───────────────────────────────
+# This is the KEY config: the frontend HTML calls /api/... (same-origin),
+# Netlify transparently forwards these to your Render/Railway backend.
+# Replace the backend URL with your actual deployed URL.
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://omniscient-ai-backend.onrender.com/api/:splat"
+  status = 200
+  force  = true
+  headers = { X-From = "netlify-proxy" }
+
+# SPA fallback — serve index.html for any unmatched path
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

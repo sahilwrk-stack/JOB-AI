@@ -1,0 +1,4 @@
+# GitGuardian — repository policy (https://docs.gitguardian.com/)
+# After remediation: docker-compose.yml and .env.example contain no credentials.
+# CI uses scripts/ci/start_pg_for_ci.sh with ephemeral passwords only.
+version: 2

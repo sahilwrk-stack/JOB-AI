@@ -1,0 +1,178 @@
+# Ephemeral PostgreSQL for tests: password generated at runtime (no secret in YAML).
+name: CI / CD — Omniscient AI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Cancel any in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Lint + Test
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start PostgreSQL (Docker, random password)
+        run: bash scripts/ci/start_pg_for_ci.sh
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with Ruff (fast Python linter)
+        run: |
+          pip install ruff
+          ruff check . --select E,F,W --ignore E501 || true  # warn, don't fail
+
+      - name: Test DB adapter — SQLite mode
+        env:
+          PYTHONPATH: .
+        run: |
+          python -c "
+          from core.db_adapter import _get_conn, IS_POSTGRES, init_schema
+          from core.memory import init_db
+          init_db()
+          with _get_conn() as conn:
+              rows = conn.execute('SELECT name FROM sqlite_master WHERE type=\'table\'').fetchall()
+              tables = [r['name'] for r in rows]
+              assert 'applications' in tables, 'applications table missing'
+              assert 'skill_performance' in tables, 'skill_performance table missing'
+          print('SQLite adapter: OK')
+          "
+
+      - name: Test DB adapter — PostgreSQL mode
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL_CI }}
+          PYTHONPATH: .
+        run: |
+          python -c "
+          from core.db_adapter import _get_conn, IS_POSTGRES, init_schema
+          assert IS_POSTGRES, 'Expected PostgreSQL mode'
+          from core.memory import init_db
+          init_db()
+          with _get_conn() as conn:
+              rows = conn.execute(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public'\").fetchall()
+              tables = [r['table_name'] for r in rows]
+              assert 'applications' in tables, 'applications table missing'
+          print('PostgreSQL adapter: OK')
+          "
+
+      - name: Test FastAPI app starts
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL_CI }}
+          PYTHONPATH: .
+          LLM_PROVIDER: ollama
+          OLLAMA_BASE_URL: http://127.0.0.1:11434/v1
+        run: |
+          pip install httpx
+          python -c "
+          from fastapi.testclient import TestClient
+          from backend.api import app
+          client = TestClient(app)
+          r = client.get('/health')
+          assert r.status_code == 200, f'Health check failed: {r.text}'
+          assert r.json()['status'] == 'ok'
+          print('FastAPI health: OK')
+          "
+
+      - name: Stop PostgreSQL container
+        if: always()
+        run: docker rm -f pg-ci 2>/dev/null || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Build Docker image (only on push to main)
+  # ─────────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub (optional — set DOCKERHUB_USERNAME / DOCKERHUB_TOKEN secrets)
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/omniscient-ai:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/omniscient-ai:${{ github.sha }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Deploy to Render (on push to main)
+  # Render auto-deploys on git push — this job just triggers a manual deploy
+  # via Render's Deploy Hook as a backup.
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-render:
+    name: Trigger Render Deploy
+    runs-on: ubuntu-latest
+    needs: [test, docker-build]
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      secrets.RENDER_DEPLOY_HOOK_URL != ''
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Render deploy triggered."
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 4: Deploy frontend to Netlify
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-netlify:
+    name: Deploy Frontend → Netlify
+    runs-on: ubuntu-latest
+    needs: test
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      secrets.NETLIFY_AUTH_TOKEN != ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: ./dashboard
+          production-branch: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Deploy from GitHub Actions — ${{ github.sha }}"
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+        env:
+          NETLIFY_AUTH_TOKEN:  ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID:     ${{ secrets.NETLIFY_SITE_ID }}

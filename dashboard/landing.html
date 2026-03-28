@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#010c18" />
+  <title>Singularity J.I. — Neural Uplink Chamber</title>
+
+  <style>
+    /* ── Reset ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:  #00ffcc;
+      --blue:  #00b4ff;
+      --green: #00ff88;
+      --dark:  #010c18;
+      --panel: rgba(0, 18, 38, 0.45);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--dark);
+      font-family: 'Segoe UI', 'Courier New', monospace;
+      color: var(--cyan);
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    /* ── Canvas ──────────────────────────────────────── */
+    #three-canvas {
+      position: fixed; inset: 0; z-index: 0;
+      display: block; width: 100%; height: 100%;
+    }
+
+    /* ── HUD Frame ───────────────────────────────────── */
+    .hud {
+      position: fixed; inset: 0; z-index: 5;
+      pointer-events: none;
+    }
+
+    /* Corner brackets */
+    .cb {
+      position: absolute;
+      width: 52px; height: 52px;
+      opacity: 0.55;
+      animation: cb-fade 4s ease-in-out infinite;
+    }
+    .cb--tl { top: 22px; left: 22px;
+      border-top: 1.5px solid var(--cyan); border-left: 1.5px solid var(--cyan); }
+    .cb--tr { top: 22px; right: 22px;
+      border-top: 1.5px solid var(--cyan); border-right: 1.5px solid var(--cyan); }
+    .cb--bl { bottom: 22px; left: 22px;
+      border-bottom: 1.5px solid var(--cyan); border-left: 1.5px solid var(--cyan); }
+    .cb--br { bottom: 22px; right: 22px;
+      border-bottom: 1.5px solid var(--cyan); border-right: 1.5px solid var(--cyan); }
+
+    @keyframes cb-fade {
+      0%,100% { opacity: 0.45; } 50% { opacity: 0.75; }
+    }
+
+    /* Scan line */
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(0,255,204,0.5) 30%,
+                  rgba(0,255,204,0.7) 50%, rgba(0,255,204,0.5) 70%, transparent 100%);
+      animation: scan-anim 7s linear infinite;
+      opacity: 0;
+    }
+    @keyframes scan-anim {
+      0%   { top: -2px; opacity: 0; }
+      3%   { opacity: 0.45; }
+      97%  { opacity: 0.12; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    /* Top bar */
+    .hud-top {
+      position: absolute; top: 22px; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 86px;
+    }
+    .hud-logo {
+      font-size: 0.68rem; letter-spacing: 0.22em;
+      text-transform: uppercase; color: rgba(0,255,204,0.6);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .hud-logo-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+      animation: dot-pulse 1.8s ease-in-out infinite;
+    }
+    .hud-time {
+      font-size: 0.65rem; letter-spacing: 0.1em;
+      color: rgba(0,255,204,0.4); font-variant-numeric: tabular-nums;
+    }
+
+    /* Bottom bar */
+    .hud-bottom {
+      position: absolute; bottom: 22px; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      padding: 0 86px;
+    }
+    .hud-readout-group { display: flex; flex-direction: column; gap: 6px; }
+    .hud-readout-row {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .hud-readout-label { color: rgba(0,255,204,0.35); width: 90px; }
+    .hud-readout-val {
+      color: var(--green); font-weight: 700;
+      animation: val-shift 0.2s ease;
+    }
+    @keyframes val-shift {
+      0% { opacity: 0.4; } 100% { opacity: 1; }
+    }
+    .hud-readout-bar {
+      width: 60px; height: 2px;
+      background: rgba(0,255,204,0.1); border-radius: 2px; overflow: hidden;
+    }
+    .hud-readout-bar-fill {
+      height: 100%; background: var(--cyan);
+      box-shadow: 0 0 4px var(--cyan);
+      border-radius: 2px; transition: width 0.4s ease;
+    }
+
+    /* Vertical stat panels (left/right sides) */
+    .side-panel {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .side-panel--left  { left: 22px; align-items: flex-start; }
+    .side-panel--right { right: 22px; align-items: flex-end; }
+    .stat-card {
+      padding: 8px 12px;
+      background: rgba(0,18,38,0.35);
+      border: 1px solid rgba(0,255,204,0.1);
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+      min-width: 120px;
+    }
+    .stat-card-label {
+      font-size: 0.55rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: rgba(0,255,204,0.35);
+      margin-bottom: 3px;
+    }
+    .stat-card-val {
+      font-size: 0.78rem; font-weight: 700; color: var(--cyan);
+    }
+
+    @keyframes dot-pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.45; transform: scale(0.65); }
+    }
+
+    /* ── TITLE ZONE — top center ─────────────────────── */
+    .title-zone {
+      position: fixed;
+      top: 72px;               /* below the HUD top-bar */
+      left: 0; right: 0;
+      z-index: 10;
+      display: flex; flex-direction: column; align-items: center;
+      pointer-events: none;
+      gap: 0;
+    }
+
+    /* ── BUTTON ZONE — bottom center ─────────────────── */
+    .btn-zone {
+      position: fixed;
+      bottom: 64px;            /* above the HUD bottom-bar */
+      left: 0; right: 0;
+      z-index: 10;
+      display: flex; flex-direction: column; align-items: center;
+      pointer-events: none;
+    }
+
+    /* ── Legacy wrappers — kept for JS compat, invisible ── */
+    .center-ui { display: none; }
+    .pedestal   { display: contents; }  /* dissolves into flow */
+    .pc         { display: none; }
+    .pc:nth-child(1) { top: 10px; left: 10px;
+      border-top: 1px solid rgba(0,255,204,0.5); border-left: 1px solid rgba(0,255,204,0.5); }
+    .pc:nth-child(2) { top: 10px; right: 10px;
+      border-top: 1px solid rgba(0,255,204,0.5); border-right: 1px solid rgba(0,255,204,0.5); }
+    .pc:nth-child(3) { bottom: 10px; left: 10px;
+      border-bottom: 1px solid rgba(0,180,255,0.35); border-left: 1px solid rgba(0,180,255,0.35); }
+    .pc:nth-child(4) { bottom: 10px; right: 10px;
+      border-bottom: 1px solid rgba(0,180,255,0.35); border-right: 1px solid rgba(0,180,255,0.35); }
+
+    .sys-tag {
+      font-size: 0.6rem; letter-spacing: 0.28em;
+      text-transform: uppercase; color: var(--green);
+      margin-bottom: 14px; opacity: 0.8;
+    }
+
+    /* Main title */
+    .main-title {
+      font-size: clamp(1.5rem, 3.2vw, 2.35rem);
+      font-weight: 900; letter-spacing: 0.1em;
+      text-transform: uppercase; text-align: center;
+      line-height: 1.2;
+      color: var(--cyan);
+      text-shadow:
+        0 0 10px rgba(0,255,204,0.55),
+        0 0 35px rgba(0,255,204,0.22),
+        0 0 80px rgba(0,180,255,0.12);
+      animation: title-breathe 4.5s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    @keyframes title-breathe {
+      0%,100% {
+        text-shadow: 0 0 10px rgba(0,255,204,0.55), 0 0 35px rgba(0,255,204,0.22);
+      }
+      50% {
+        text-shadow: 0 0 18px rgba(0,255,204,0.85), 0 0 55px rgba(0,255,204,0.4),
+                     0 0 100px rgba(0,200,255,0.2);
+      }
+    }
+
+    /* Glitch layers */
+    .main-title { position: relative; }
+    .main-title.do-glitch::before,
+    .main-title.do-glitch::after {
+      content: attr(data-text);
+      position: absolute; top: 0; left: 0; width: 100%;
+      pointer-events: none; text-align: center;
+    }
+    .main-title.do-glitch::before {
+      color: #ff00cc;
+      clip-path: polygon(0 10%, 100% 10%, 100% 35%, 0 35%);
+      animation: glitch-a 0.22s steps(2) forwards;
+    }
+    .main-title.do-glitch::after {
+      color: #00ccff;
+      clip-path: polygon(0 55%, 100% 55%, 100% 80%, 0 80%);
+      animation: glitch-b 0.22s steps(2) forwards;
+    }
+    @keyframes glitch-a {
+      0%   { transform: translate(-3px, 0) skewX(-2deg); }
+      33%  { transform: translate(3px, 0)  skewX(2deg);  }
+      66%  { transform: translate(-1px, 0) skewX(-1deg); }
+      100% { transform: translate(0, 0);   }
+    }
+    @keyframes glitch-b {
+      0%   { transform: translate(3px, 0)  skewX(2deg);  }
+      33%  { transform: translate(-2px, 0) skewX(-2deg); }
+      66%  { transform: translate(2px, 0)  skewX(1deg);  }
+      100% { transform: translate(0, 0);   }
+    }
+
+    .sub-title {
+      font-size: 0.7rem; letter-spacing: 0.2em;
+      color: rgba(0,255,204,0.4); text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    /* Status chips */
+    .chip-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      justify-content: center; margin-bottom: 0;
+    }
+    .chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 13px;
+      background: rgba(0,255,204,0.05);
+      border: 1px solid rgba(0,255,204,0.14);
+      border-radius: 20px;
+      font-size: 0.58rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(0,255,204,0.65);
+    }
+    .chip-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      animation: dot-pulse 1.8s ease-in-out infinite;
+    }
+    .chip-dot.g { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .chip-dot.b { background: var(--blue);  box-shadow: 0 0 5px var(--blue);  animation-delay: 0.6s; }
+    .chip-dot.a { background: #f59e0b;      box-shadow: 0 0 5px #f59e0b;      animation-delay: 1.2s; }
+
+    /* ── Circular Button ──────────────────────────────── */
+    .btn-wrap {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      width: 200px; height: 200px;
+    }
+
+    /* Animated orbital rings around button */
+    .orb-ring {
+      position: absolute; border-radius: 50%;
+      border: 1px solid rgba(0,255,204,0.25);
+      animation: orb-expand 2.8s ease-out infinite;
+    }
+    .orb-ring:nth-child(1) { width: 170px; height: 170px; animation-delay: 0s;   }
+    .orb-ring:nth-child(2) { width: 195px; height: 195px; animation-delay: 0.9s; }
+    .orb-ring:nth-child(3) { width: 220px; height: 220px; animation-delay: 1.8s; }
+    @keyframes orb-expand {
+      0%   { opacity: 0.6; transform: scale(0.82); }
+      100% { opacity: 0;   transform: scale(1.1);  }
+    }
+
+    /* The button itself */
+    .uplink-btn {
+      position: relative; z-index: 2;
+      width: 148px; height: 148px; border-radius: 50%;
+      border: 1.5px solid rgba(0,255,204,0.7);
+      background: radial-gradient(circle at 40% 35%,
+        rgba(0,255,204,0.16) 0%,
+        rgba(0,50,80,0.6) 55%,
+        rgba(0,12,25,0.85) 100%
+      );
+      color: var(--cyan);
+      cursor: pointer; outline: none;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 7px;
+      transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+      box-shadow:
+        0 0 22px rgba(0,255,204,0.22),
+        0 0 70px rgba(0,255,204,0.08),
+        inset 0 0 22px rgba(0,255,204,0.06),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .uplink-btn:hover {
+      border-color: var(--cyan);
+      background: radial-gradient(circle at 40% 35%,
+        rgba(0,255,204,0.26) 0%,
+        rgba(0,60,90,0.7) 55%,
+        rgba(0,15,30,0.9) 100%
+      );
+      transform: scale(1.06);
+      box-shadow:
+        0 0 45px rgba(0,255,204,0.55),
+        0 0 120px rgba(0,255,204,0.2),
+        0 0 200px rgba(0,180,255,0.1),
+        inset 0 0 35px rgba(0,255,204,0.15);
+      color: #fff;
+    }
+    .uplink-btn:active { transform: scale(0.97); }
+
+    .btn-icon {
+      font-size: 2rem; line-height: 1;
+      animation: icon-spin 12s linear infinite;
+      display: inline-block;
+    }
+    @keyframes icon-spin {
+      from { transform: rotate(0deg); } to { transform: rotate(360deg); }
+    }
+    .uplink-btn:hover .btn-icon { animation-duration: 2s; }
+
+    .btn-label {
+      font-size: 0.62rem; font-weight: 800;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      text-align: center; line-height: 1.4;
+    }
+    .btn-sub {
+      font-size: 0.5rem; letter-spacing: 0.12em;
+      color: rgba(0,255,204,0.45); text-transform: uppercase;
+    }
+
+    /* ── Progress / Activation state ────────────────── */
+    .prog-wrap {
+      margin-top: 22px; width: 220px; display: none;
+    }
+    .prog-header {
+      display: flex; justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .prog-label {
+      font-size: 0.6rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(0,255,204,0.55);
+    }
+    .prog-pct {
+      font-size: 0.6rem; font-weight: 700; color: var(--cyan);
+    }
+    .prog-track {
+      height: 2px; background: rgba(0,255,204,0.1);
+      border-radius: 2px; overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--green), var(--cyan), var(--blue));
+      border-radius: 2px;
+      box-shadow: 0 0 10px var(--cyan);
+      transition: width 0.12s linear;
+    }
+
+    /* ── Warp transition overlay ─────────────────────── */
+    #warp-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: #000; opacity: 0; pointer-events: none;
+    }
+    #warp-overlay.go {
+      pointer-events: all;
+      animation: warp-sequence 1.4s ease-in-out forwards;
+    }
+    @keyframes warp-sequence {
+      0%   { opacity: 0;   filter: brightness(1) blur(0px); background: #000; }
+      25%  { opacity: 0.6; filter: brightness(2) blur(2px);  background: radial-gradient(circle, #00ffcc, #000); }
+      55%  { opacity: 1;   filter: brightness(4) blur(10px); background: radial-gradient(circle, #fff, #00ffcc, #000); }
+      80%  { opacity: 1;   filter: brightness(1) blur(20px); background: #fff; }
+      100% { opacity: 1;   filter: brightness(1) blur(0px);  background: #010c18; }
+    }
+
+    /* ── Responsive ──────────────────────────────────── */
+    /* ═══════════════════════════════════════════════════
+       RESPONSIVE — TABLET  (≤ 900px)
+    ═══════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .side-panel { display: none; }
+      .hud-top    { padding: 0 52px; }
+      .hud-bottom { padding: 0 52px; }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESPONSIVE — MOBILE  (≤ 768px)
+    ═══════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      /* HUD: hide side panels + bottom readouts */
+      .side-panel,
+      .hud-bottom { display: none; }
+
+      /* HUD top: compact */
+      .hud-top {
+        padding: 0 16px;
+        top: 14px;
+      }
+      .hud-logo  { font-size: 0.55rem; letter-spacing: 0.14em; }
+      .hud-time  { font-size: 0.55rem; }
+
+      /* Corner brackets: smaller */
+      .cb { width: 28px; height: 28px; }
+      .cb--tl { top: 12px; left: 12px; }
+      .cb--tr { top: 12px; right: 12px; }
+      .cb--bl { bottom: 12px; left: 12px; }
+      .cb--br { bottom: 12px; right: 12px; }
+
+      /* Title zone: push down just past the HUD bar */
+      .title-zone {
+        top: 54px;
+        padding: 0 20px;
+        gap: 0;
+      }
+      .sys-tag {
+        font-size: 0.52rem;
+        letter-spacing: 0.2em;
+        margin-bottom: 10px;
+      }
+      .main-title {
+        font-size: clamp(1.15rem, 5.5vw, 1.85rem);
+        letter-spacing: 0.07em;
+        margin-bottom: 6px;
+      }
+      .sub-title {
+        font-size: 0.6rem;
+        letter-spacing: 0.12em;
+        margin-bottom: 14px;
+      }
+      .chip-row { gap: 6px; margin-bottom: 0; }
+      .chip { padding: 4px 10px; font-size: 0.53rem; gap: 5px; }
+      .chip-dot { width: 4px; height: 4px; }
+
+      /* Button zone: higher up, smaller button */
+      .btn-zone { bottom: 36px; }
+      .btn-wrap  { width: 150px; height: 150px; }
+      .uplink-btn {
+        width: 118px; height: 118px;
+        box-shadow: 0 0 18px rgba(0,255,204,0.2), 0 0 55px rgba(0,255,204,0.07);
+      }
+      .btn-icon  { font-size: 1.5rem; }
+      .btn-label { font-size: 0.6rem; letter-spacing: 0.14em; }
+      .btn-sub   { font-size: 0.44rem; }
+
+      /* Orbital rings scale */
+      .orb-ring:nth-child(1) { width: 134px; height: 134px; }
+      .orb-ring:nth-child(2) { width: 155px; height: 155px; }
+      .orb-ring:nth-child(3) { width: 176px; height: 176px; }
+
+      /* Progress bar */
+      .prog-wrap  { width: 190px; margin-top: 16px; }
+      .prog-label { font-size: 0.56rem; }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESPONSIVE — SMALL PHONE  (≤ 480px)
+    ═══════════════════════════════════════════════════ */
+    @media (max-width: 480px) {
+      .hud-logo-dot + span,
+      .hud-logo span:not(.hud-logo-dot) { display: none; } /* keep dot, hide text */
+
+      .title-zone { top: 46px; padding: 0 14px; }
+      .sys-tag    { font-size: 0.48rem; letter-spacing: 0.15em; }
+      .main-title {
+        font-size: clamp(1rem, 6.5vw, 1.4rem);
+        letter-spacing: 0.05em;
+      }
+      .sub-title  { font-size: 0.55rem; }
+      .chip { padding: 3px 8px; font-size: 0.5rem; }
+
+      .btn-zone   { bottom: 26px; }
+      .uplink-btn { width: 102px; height: 102px; }
+      .btn-icon   { font-size: 1.25rem; }
+      .btn-label  { font-size: 0.55rem; letter-spacing: 0.1em; }
+      .btn-sub    { display: none; }
+
+      .orb-ring:nth-child(1) { width: 116px; height: 116px; }
+      .orb-ring:nth-child(2) { width: 135px; height: 135px; }
+      .orb-ring:nth-child(3) { width: 154px; height: 154px; }
+
+      .prog-wrap { width: 170px; }
+    }
+
+    /* ═══════════════════════════════════════════════════
+       RESPONSIVE — EXTRA SMALL  (≤ 360px)
+    ═══════════════════════════════════════════════════ */
+    @media (max-width: 360px) {
+      .title-zone { top: 40px; padding: 0 10px; }
+      .main-title { font-size: clamp(0.92rem, 7vw, 1.2rem); }
+      .chip-row   { gap: 4px; }
+      .chip       { padding: 3px 7px; font-size: 0.48rem; }
+      .uplink-btn { width: 90px; height: 90px; }
+      .btn-zone   { bottom: 20px; }
+    }
+
+    /* ── iOS safe-area (home bar) ───────────────────── */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      @media (max-width: 768px) {
+        .btn-zone { bottom: calc(36px + env(safe-area-inset-bottom)); }
+      }
+      @media (max-width: 480px) {
+        .btn-zone { bottom: calc(26px + env(safe-area-inset-bottom)); }
+      }
+    }
+
+    /* ── Landscape phone: keep core visible ─────────── */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .title-zone {
+        top: 10px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        padding: 0 80px;
+      }
+      .sys-tag   { margin-bottom: 0; }
+      .sub-title { display: none; }
+      .chip-row  { display: none; }
+      .main-title {
+        font-size: clamp(0.85rem, 2.8vw, 1.2rem);
+        white-space: nowrap;
+      }
+      .btn-zone  { bottom: 12px; }
+      .btn-wrap  { width: 120px; height: 120px; }
+      .uplink-btn { width: 92px; height: 92px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     THREE.JS CANVAS
+══════════════════════════════════════════════════════ -->
+<canvas id="three-canvas"></canvas>
+
+<!-- ══════════════════════════════════════════════════════
+     HUD OVERLAY
+══════════════════════════════════════════════════════ -->
+<div class="hud">
+
+  <!-- Corner brackets -->
+  <div class="cb cb--tl"></div>
+  <div class="cb cb--tr"></div>
+  <div class="cb cb--bl"></div>
+  <div class="cb cb--br"></div>
+
+  <!-- Scan line -->
+  <div class="scan-line"></div>
+
+  <!-- Top bar -->
+  <div class="hud-top">
+    <div class="hud-logo">
+      <div class="hud-logo-dot"></div>
+      OMNISCIENT AI · NEURAL GATEWAY
+    </div>
+    <div class="hud-time" id="hud-clock">--:--:--</div>
+  </div>
+
+  <!-- Bottom data readouts -->
+  <div class="hud-bottom">
+    <div class="hud-readout-group">
+      <div class="hud-readout-row">
+        <span class="hud-readout-label">Neural Sync</span>
+        <span class="hud-readout-val" id="r-sync">99.7%</span>
+        <div class="hud-readout-bar"><div class="hud-readout-bar-fill" id="rb-sync" style="width:99.7%"></div></div>
+      </div>
+      <div class="hud-readout-row">
+        <span class="hud-readout-label">Match Engine</span>
+        <span class="hud-readout-val" id="r-match">ARMED</span>
+        <div class="hud-readout-bar"><div class="hud-readout-bar-fill" id="rb-match" style="width:88%"></div></div>
+      </div>
+      <div class="hud-readout-row">
+        <span class="hud-readout-label">Latency</span>
+        <span class="hud-readout-val" id="r-lat">3 ms</span>
+        <div class="hud-readout-bar"><div class="hud-readout-bar-fill" id="rb-lat" style="width:96%"></div></div>
+      </div>
+    </div>
+    <div class="hud-readout-group" style="text-align:right">
+      <div class="hud-readout-row" style="flex-direction:row-reverse">
+        <span class="hud-readout-label" style="text-align:right">Safety Guard</span>
+        <span class="hud-readout-val">ACTIVE</span>
+      </div>
+      <div class="hud-readout-row" style="flex-direction:row-reverse">
+        <span class="hud-readout-label" style="text-align:right">Memory</span>
+        <span class="hud-readout-val">LOADED</span>
+      </div>
+      <div class="hud-readout-row" style="flex-direction:row-reverse">
+        <span class="hud-readout-label" style="text-align:right">Data Stream</span>
+        <span class="hud-readout-val" id="r-stream">↑ 3.1 GB/s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Left side panel -->
+  <div class="side-panel side-panel--left">
+    <div class="stat-card">
+      <div class="stat-card-label">Nodes Active</div>
+      <div class="stat-card-val" id="s-nodes">2,048</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Jobs Indexed</div>
+      <div class="stat-card-val" id="s-jobs">14,387</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Uptime</div>
+      <div class="stat-card-val" id="s-uptime">00:00:00</div>
+    </div>
+  </div>
+
+  <!-- Right side panel -->
+  <div class="side-panel side-panel--right">
+    <div class="stat-card" style="text-align:right">
+      <div class="stat-card-label">Orchestrator</div>
+      <div class="stat-card-val">STANDBY</div>
+    </div>
+    <div class="stat-card" style="text-align:right">
+      <div class="stat-card-label">Self-Improve</div>
+      <div class="stat-card-val">ENABLED</div>
+    </div>
+    <div class="stat-card" style="text-align:right">
+      <div class="stat-card-label">Confidence</div>
+      <div class="stat-card-val" id="s-conf">91.4%</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     CENTER UI
+══════════════════════════════════════════════════════ -->
+<!-- ══ TITLE ZONE — top center ══ -->
+<div class="title-zone">
+  <div class="sys-tag">◈ &nbsp; Omniscient AI &nbsp;·&nbsp; v3.1.0 &nbsp; ◈</div>
+
+  <h1 class="main-title" id="main-title" data-text="SINGULARITY J.I. UPLINK IS LIVE">
+    SINGULARITY J.I.<br>UPLINK IS LIVE
+  </h1>
+
+  <div class="sub-title">Neural Intelligence Gateway — Initialized</div>
+
+  <!-- Status chips -->
+  <div class="chip-row">
+    <div class="chip"><div class="chip-dot g"></div>ONLINE</div>
+    <div class="chip"><div class="chip-dot b"></div>SYNCED</div>
+    <div class="chip"><div class="chip-dot a"></div>ARMED</div>
+    <div class="chip"><div class="chip-dot g"></div>SAFE</div>
+  </div>
+</div>
+
+<!-- ══ BUTTON ZONE — bottom center ══ -->
+<div class="btn-zone">
+  <!-- Circular activate button -->
+  <div class="btn-wrap" style="pointer-events:auto">
+    <div class="orb-ring"></div>
+    <div class="orb-ring"></div>
+    <div class="orb-ring"></div>
+
+    <button class="uplink-btn" id="uplink-btn" onclick="activateUplink()">
+      <span class="btn-icon" id="btn-icon">⬡</span>
+      <span class="btn-label" id="btn-label">ACTIVATE<br>UPLINK</span>
+      <span class="btn-sub" id="btn-sub">CLICK TO ENGAGE</span>
+    </button>
+  </div>
+
+  <!-- Progress bar (shown on activation) -->
+  <div class="prog-wrap" id="prog-wrap">
+    <div class="prog-header">
+      <span class="prog-label" id="prog-label">Initializing...</span>
+      <span class="prog-pct"   id="prog-pct">0%</span>
+    </div>
+    <div class="prog-track">
+      <div class="prog-fill" id="prog-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Warp overlay -->
+<div id="warp-overlay"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     THREE.JS  (r128)
+══════════════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── Renderer ────────────────────────────────────── */
+  /* ── Device detection ───────────────────────────── */
+  const IS_MOBILE  = innerWidth <= 768 || ('ontouchstart' in window);
+  const IS_SMALL   = innerWidth <= 480;
+  const IS_PORTRAIT = innerHeight > innerWidth;
+
+  const canvas   = document.getElementById('three-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !IS_MOBILE, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE ? 1.5 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setClearColor(0x010c18, 1);
+  renderer.shadowMap.enabled = !IS_MOBILE;
+
+  /* ── Scene / Camera ──────────────────────────────── */
+  const scene  = new THREE.Scene();
+  scene.fog    = new THREE.FogExp2(0x010c18, IS_MOBILE ? 0.048 : 0.038);
+
+  // Wider FOV on portrait mobile so the core fits the tall screen
+  const fov    = IS_PORTRAIT && IS_MOBILE ? 75 : 62;
+  const camZ   = IS_MOBILE ? (IS_PORTRAIT ? 9.5 : 8.5) : 7.5;
+  const camera = new THREE.PerspectiveCamera(fov, innerWidth / innerHeight, 0.1, 1000);
+  camera.position.set(0, 1.5, camZ);
+  camera.lookAt(0, 0, 0);
+
+  /* ── Lights ──────────────────────────────────────── */
+  scene.add(new THREE.AmbientLight(0x001830, 3));
+
+  const lMain = new THREE.PointLight(0x00ffcc, 5, 28);
+  lMain.position.set(0, 2, 3);
+  scene.add(lMain);
+
+  const lBlue = new THREE.PointLight(0x0055ff, 3.5, 22);
+  lBlue.position.set(-5, 0, -2);
+  scene.add(lBlue);
+
+  const lGreen = new THREE.PointLight(0x00ff55, 2, 18);
+  lGreen.position.set(4, -2, 2);
+  scene.add(lGreen);
+
+  const lRim = new THREE.PointLight(0x00aaff, 1.5, 30);
+  lRim.position.set(0, -4, -5);
+  scene.add(lRim);
+
+  /* ── Neural Nexus Core ───────────────────────────── */
+  // Solid inner core
+  const coreGeo = new THREE.TorusKnotGeometry(1.1, 0.34, 200, 22, 2, 3);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color:     0x00ddbb,
+    emissive:  0x007755,
+    emissiveIntensity: 0.6,
+    metalness: 0.88,
+    roughness: 0.1,
+  });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  scene.add(core);
+
+  // Wireframe outer shell
+  const shellMat = new THREE.MeshBasicMaterial({
+    color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.1,
+  });
+  const shell = new THREE.Mesh(
+    new THREE.TorusKnotGeometry(1.22, 0.4, 200, 22, 2, 3), shellMat
+  );
+  scene.add(shell);
+
+  // Glowing core halo (cheap bloom substitute — additive sphere)
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0x004433, transparent: true, opacity: 0.18, side: THREE.BackSide,
+  });
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(2.0, 32, 32), haloMat);
+  scene.add(halo);
+
+  /* ── Orbital Rings ───────────────────────────────── */
+  function makeRing(r, tube, rx, ry, rz, col, op) {
+    const m = new THREE.Mesh(
+      new THREE.TorusGeometry(r, tube, 6, 100),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op })
+    );
+    m.rotation.set(rx, ry, rz);
+    return m;
+  }
+
+  const rings = [
+    makeRing(2.2,  0.007, 0,              0,           0,             0x00ffcc, 0.45),
+    makeRing(2.65, 0.006, Math.PI / 2,    0,           Math.PI / 4,   0x0088ff, 0.30),
+    makeRing(3.1,  0.005, Math.PI * 0.35, Math.PI / 6, 0,             0x00ff88, 0.22),
+    makeRing(3.6,  0.004, Math.PI * 0.7,  Math.PI*0.3, Math.PI * 0.5, 0x00ccff, 0.15),
+    makeRing(4.2,  0.003, Math.PI * 0.15, Math.PI*0.6, Math.PI * 0.8, 0x0044ff, 0.10),
+  ];
+  rings.forEach(r => scene.add(r));
+
+  /* ── Wireframe Icosahedron ───────────────────────── */
+  const icoMesh = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(2.0, 1),
+    new THREE.MeshBasicMaterial({ color: 0x003355, wireframe: true, transparent: true, opacity: 0.07 })
+  );
+  scene.add(icoMesh);
+
+  /* ── Particle Field ──────────────────────────────── */
+  const N_PART = IS_MOBILE ? (IS_SMALL ? 1200 : 2000) : 4000;
+  const pPos   = new Float32Array(N_PART * 3);
+  const pCol   = new Float32Array(N_PART * 3);
+
+  const palette = [
+    [0, 1, 0.8], [0, 0.55, 1], [0, 1, 0.53],
+    [0.15, 0.75, 1], [0, 0.85, 0.65],
+  ];
+
+  for (let i = 0; i < N_PART; i++) {
+    const t   = Math.random();
+    const r   = t < 0.3
+      ? 2.5  + Math.random() * 3            // inner dense shell
+      : 5.5  + Math.random() * 12;          // outer sparse field
+    const th  = Math.random() * Math.PI * 2;
+    const ph  = Math.acos(2 * Math.random() - 1);
+    pPos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    pPos[i*3+1] = r * Math.sin(ph) * Math.sin(th);
+    pPos[i*3+2] = r * Math.cos(ph);
+
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2];
+  }
+
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  pGeo.setAttribute('color',    new THREE.BufferAttribute(pCol, 3));
+
+  const parts = new THREE.Points(pGeo, new THREE.PointsMaterial({
+    size: 0.045, vertexColors: true,
+    transparent: true, opacity: 0.7, sizeAttenuation: true,
+  }));
+  scene.add(parts);
+
+  /* ── Data Stream Lines ───────────────────────────── */
+  const streamGroup = new THREE.Group();
+  const streamCols  = [0x00ffcc, 0x0088ff, 0x00ff88, 0x00ccff, 0x0055ff];
+
+  for (let i = 0; i < (IS_MOBILE ? 30 : 70); i++) {
+    const dir = new THREE.Vector3(
+      Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
+    ).normalize();
+    const pts = [];
+    const segCount = 8 + Math.floor(Math.random() * 6);
+    const startR   = 1.3 + Math.random() * 0.5;
+    const endR     = startR + 3 + Math.random() * 5;
+    for (let j = 0; j < segCount; j++) {
+      const s = startR + (endR - startR) * (j / (segCount - 1));
+      pts.push(dir.clone().multiplyScalar(s));
+    }
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({
+        color: streamCols[i % streamCols.length],
+        transparent: true,
+        opacity: 0.1 + Math.random() * 0.28,
+      })
+    );
+    streamGroup.add(line);
+  }
+  scene.add(streamGroup);
+
+  /* ── Grid Floor ──────────────────────────────────── */
+  const grid = new THREE.GridHelper(40, 40, 0x003344, 0x001122);
+  grid.position.y = -3.8;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.3;
+  scene.add(grid);
+
+  /* ── Volumetric Light Columns ────────────────────── */
+  function makePillar(col, x, z, h = 9) {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.6, h, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.038, side: THREE.DoubleSide })
+    );
+    m.position.set(x, -3.8 + h / 2, z);
+    return m;
+  }
+  scene.add(makePillar(0x00ffcc, -6, -2, 9));
+  scene.add(makePillar(0x0055ff,  6, -2, 9));
+  scene.add(makePillar(0x00ff88,  0, -7, 11));
+  scene.add(makePillar(0x00ccff, -3,  4, 7));
+  scene.add(makePillar(0x00ccff,  3,  4, 7));
+
+  /* ── Mouse parallax ──────────────────────────────── */
+  let mx = 0, my = 0;
+  window.addEventListener('mousemove', e => {
+    mx = (e.clientX / innerWidth  - 0.5) * 2;
+    my = (e.clientY / innerHeight - 0.5) * 2;
+  });
+
+  /* ── Clock & Animation Loop ──────────────────────── */
+  const clock = new THREE.Clock();
+  let camYaw = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    // Core
+    core.rotation.x  = t * 0.22;
+    core.rotation.y  = t * 0.35;
+    shell.rotation.x = t * 0.15;
+    shell.rotation.y = -t * 0.24;
+    halo.rotation.y  = t * 0.1;
+
+    // Icosphere
+    icoMesh.rotation.x = t * 0.07;
+    icoMesh.rotation.y = t * 0.10;
+
+    // Rings counter-rotating
+    rings[0].rotation.z =  t * 0.14;
+    rings[1].rotation.x =  Math.PI / 2 - t * 0.18;
+    rings[2].rotation.y =  t * 0.16;
+    rings[3].rotation.z = -t * 0.11;
+    rings[4].rotation.x =  t * 0.09;
+
+    // Particles slow drift
+    parts.rotation.y = t * 0.014;
+    parts.rotation.x = Math.sin(t * 0.06) * 0.06;
+
+    // Streams
+    streamGroup.rotation.y = t * 0.035;
+    streamGroup.children.forEach((l, i) => {
+      const phase = (t * 1.1 + i * 0.28) % (Math.PI * 2);
+      l.material.opacity = 0.06 + Math.abs(Math.sin(phase)) * 0.32;
+    });
+
+    // Orbiting lights
+    lMain.position.x = Math.sin(t * 0.55) * 3.5;
+    lMain.position.z = Math.cos(t * 0.55) * 3.5;
+    lGreen.position.x = Math.cos(t * 0.38) * 4.5;
+    lGreen.position.z = Math.sin(t * 0.38) * 4.5;
+
+    // Camera gentle arc + mouse parallax
+    camYaw += 0.0006;
+    camera.position.x = Math.sin(camYaw) * 1.2 + mx * 0.4;
+    camera.position.y = 1.8 + Math.sin(t * 0.28) * 0.35 - my * 0.25;
+    camera.position.z = 7.5 + Math.cos(camYaw) * 0.4;
+    camera.lookAt(0, 0, 0);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  /* ── Resize / Orientation change ────────────────── */
+  function onResize() {
+    const portrait = innerHeight > innerWidth;
+    const mob      = innerWidth <= 768 || ('ontouchstart' in window);
+    camera.fov     = portrait && mob ? 75 : 62;
+    camera.aspect  = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  }
+  window.addEventListener('resize',            onResize, { passive: true });
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 200), { passive: true });
+
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════
+     UI LOGIC
+══════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Clock ────────────────────────────────────────── */
+const clockEl = document.getElementById('hud-clock');
+function updateClock() {
+  clockEl.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── Uptime counter ───────────────────────────────── */
+const uptimeStart = Date.now();
+setInterval(() => {
+  const s = Math.floor((Date.now() - uptimeStart) / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  const el = document.getElementById('s-uptime');
+  if (el) el.textContent = `${h}:${m}:${sec}`;
+}, 1000);
+
+/* ── Live stat flicker ────────────────────────────── */
+function rnd(min, max, dec = 1) {
+  return (min + Math.random() * (max - min)).toFixed(dec);
+}
+function updateStats() {
+  document.getElementById('r-sync').textContent  = rnd(98.8, 99.95) + '%';
+  document.getElementById('r-lat').textContent   = rnd(1.5, 5.5, 0) + ' ms';
+  document.getElementById('r-stream').textContent= '↑ ' + rnd(2.5, 4.5) + ' GB/s';
+  document.getElementById('s-nodes').textContent = (2000 + Math.floor(Math.random() * 250)).toLocaleString();
+  document.getElementById('s-jobs').textContent  = (14000 + Math.floor(Math.random() * 800)).toLocaleString();
+  document.getElementById('s-conf').textContent  = rnd(88, 97) + '%';
+
+  // bar fills
+  document.getElementById('rb-sync').style.width  = rnd(98, 100) + '%';
+  document.getElementById('rb-lat').style.width   = rnd(82, 99) + '%';
+  document.getElementById('rb-match').style.width = rnd(80, 98) + '%';
+
+  setTimeout(updateStats, 700 + Math.random() * 1100);
+}
+updateStats();
+
+/* ── Glitch effect ────────────────────────────────── */
+const titleEl = document.getElementById('main-title');
+function triggerGlitch() {
+  titleEl.classList.add('do-glitch');
+  setTimeout(() => titleEl.classList.remove('do-glitch'), 240);
+  setTimeout(triggerGlitch, 3500 + Math.random() * 6500);
+}
+setTimeout(triggerGlitch, 1800);
+
+/* ── Title zone subtle parallax on mouse ─────────── */
+const titleZone = document.querySelector('.title-zone');
+window.addEventListener('mousemove', e => {
+  const x = (e.clientX / innerWidth  - 0.5) * 6;
+  const y = (e.clientY / innerHeight - 0.5) * 4;
+  titleZone.style.transform = `translate(${x * 0.5}px, ${y * 0.4}px)`;
+});
+
+/* ── Activate Uplink ──────────────────────────────── */
+let _activating = false;
+
+async function activateUplink() {
+  if (_activating) return;
+  _activating = true;
+
+  const btn     = document.getElementById('uplink-btn');
+  const icon    = document.getElementById('btn-icon');
+  const label   = document.getElementById('btn-label');
+  const sub     = document.getElementById('btn-sub');
+  const wrap    = document.getElementById('prog-wrap');
+  const fill    = document.getElementById('prog-fill');
+  const lbl     = document.getElementById('prog-label');
+  const pct     = document.getElementById('prog-pct');
+  const overlay = document.getElementById('warp-overlay');
+
+  btn.style.cursor = 'default';
+  icon.style.animationDuration = '0.8s';
+  label.innerHTML = 'LINKING<br>UPLINK';
+  sub.textContent = 'ESTABLISHING...';
+  wrap.style.display = 'block';
+
+  const steps = [
+    [8,  'Authenticating neural signature...'],
+    [18, 'Establishing quantum channel...'],
+    [30, 'Handshaking orchestrator...'],
+    [45, 'Loading candidate profile...'],
+    [58, 'Syncing job intelligence DB...'],
+    [70, 'Arming decision engine...'],
+    [82, 'Calibrating match thresholds...'],
+    [93, 'Safety guard confirmation...'],
+    [100,'UPLINK SECURED'],
+  ];
+
+  for (const [p, msg] of steps) {
+    lbl.textContent = msg;
+    pct.textContent = p + '%';
+    fill.style.width = p + '%';
+    await pause(160 + Math.random() * 160);
+  }
+
+  icon.textContent = '◉';
+  icon.style.animationDuration = '0.3s';
+  label.innerHTML = 'UPLINK<br>ACTIVE';
+  sub.textContent = 'ENTERING SYSTEM...';
+
+  await pause(420);
+
+  // Warp sequence
+  overlay.classList.add('go');
+  await pause(1350);
+
+  window.location.href = '/dashboard';
+}
+
+function pause(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+
+</body>
+</html>

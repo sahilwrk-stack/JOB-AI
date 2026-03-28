@@ -1,0 +1,58 @@
+[
+  {
+    "title": "Machine Learning Engineer",
+    "company": "DataSpark AI",
+    "location": "Bangalore, India (Hybrid)",
+    "url": "https://example.com/jobs/ml-engineer-dataspark",
+    "description": "We are looking for a Machine Learning Engineer with 2+ years of Python, scikit-learn, TensorFlow or PyTorch. Experience with NLP, data pipelines, MLflow/Kubeflow, and SQL. Deploy models to production, optimize inference, build feature stores."
+  },
+  {
+    "title": "Senior Data Scientist",
+    "company": "Quantify Analytics",
+    "location": "Remote",
+    "url": "https://example.com/jobs/senior-ds-quantify",
+    "description": "5+ years data science experience. Deep expertise in statistical modeling, A/B testing, causal inference. Python (pandas, numpy, sklearn), SQL, Spark. Communicate insights to C-suite. PhD or equivalent preferred."
+  },
+  {
+    "title": "Full Stack Developer (React + Node)",
+    "company": "TechVentures Inc",
+    "location": "Remote",
+    "url": "https://example.com/jobs/fullstack-techventures",
+    "description": "1-3 years with React.js and Node.js. RESTful APIs, PostgreSQL, Docker, Git. TypeScript preferred. Next.js and AWS a plus."
+  },
+  {
+    "title": "Data Analyst",
+    "company": "FinInsights Corp",
+    "location": "Mumbai, India",
+    "url": "https://example.com/jobs/data-analyst-fininsights",
+    "description": "SQL (advanced), Python/R, Tableau or Power BI, Excel. Build dashboards and reports. Present insights to stakeholders. Finance domain experience preferred."
+  },
+  {
+    "title": "NLP Research Engineer",
+    "company": "LinguaLabs",
+    "location": "Hyderabad, India (Hybrid)",
+    "url": "https://example.com/jobs/nlp-lingualabs",
+    "description": "Build and fine-tune large language models. Transformers, HuggingFace, PyTorch. Research on text classification, NER, summarization. Python, CUDA experience. Publications preferred."
+  },
+  {
+    "title": "AI/ML Product Manager",
+    "company": "InnovateTech",
+    "location": "Bangalore, India",
+    "url": "https://example.com/jobs/pm-ai-innovatetech",
+    "description": "PM with strong AI/ML understanding to lead model deployment and MLOps product. 3+ years PM experience, technical background, stakeholder management, roadmap planning."
+  },
+  {
+    "title": "Junior Python Developer",
+    "company": "StartupXYZ",
+    "location": "Pune, India",
+    "url": "https://example.com/jobs/junior-python-startupxyz",
+    "description": "0-1 year Python experience. Django or Flask basics, REST APIs, Git, SQL basics. Will mentor and train. Freshers welcome."
+  },
+  {
+    "title": "DevOps Engineer",
+    "company": "CloudBase Systems",
+    "location": "Hyderabad, India",
+    "url": "https://example.com/jobs/devops-cloudbase",
+    "description": "4+ years DevOps. AWS/GCP/Azure (production), Kubernetes, Docker, CI/CD (Jenkins/GitHub Actions), Terraform, Linux administration, Prometheus/Grafana monitoring."
+  }
+]

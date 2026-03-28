@@ -1,0 +1,52 @@
+# ============================================================
+# Omniscient AI — Python Dependencies
+# ============================================================
+
+# ── Web Framework (Production) ────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+gunicorn>=22.0.0
+
+# ── Legacy dev server (kept for local Flask fallback) ─────────
+flask>=3.1.0
+flask-cors>=4.0.0
+
+# ── Core AI / LLM (Ollama — OpenAI-compatible /v1) ──────────────
+openai>=1.0.0
+
+# ── PDF & Document Parsing ────────────────────────────────────
+pdfplumber>=0.10.3
+python-docx>=1.1.0
+pypdf2>=3.0.1
+
+# ── Web Automation ────────────────────────────────────────────
+playwright>=1.44.0
+selenium>=4.21.0
+webdriver-manager>=4.0.1
+
+# ── HTTP & Scraping ───────────────────────────────────────────
+requests>=2.32.0
+httpx>=0.27.0
+beautifulsoup4>=4.12.3
+lxml>=5.2.1
+
+# ── Data & Validation ─────────────────────────────────────────
+pydantic>=2.7.1
+pandas>=2.2.2
+
+# ── Database ──────────────────────────────────────────────────
+# sqlite3 is built-in (local dev / free tier)
+psycopg2-binary>=2.9.9    # PostgreSQL (Render / Railway production)
+
+# ── Environment & Config ──────────────────────────────────────
+python-dotenv>=1.0.1
+
+# ── Notifications ─────────────────────────────────────────────
+twilio>=9.0.0           # WhatsApp via Twilio (optional — only needed if WHATSAPP_ENABLED=true)
+# sendgrid>=6.11.0      # Uncomment if using SendGrid instead of SMTP
+
+# ── Utilities ─────────────────────────────────────────────────
+rich>=13.7.1
+tenacity>=8.3.0
+colorama>=0.4.6
+loguru>=0.7.2

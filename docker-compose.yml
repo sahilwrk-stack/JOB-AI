@@ -1,0 +1,75 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Omniscient AI — Local Development Stack
+#
+# No database credentials appear in this file. Copy .env.example → .env and fill
+# values locally (see README). Required keys for Postgres/pgAdmin/backend are
+# documented in README — not duplicated here (avoids secret scanners on YAML).
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env — add Docker/Postgres fields per README
+#   docker-compose up -d
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/db
+    command: >
+      uvicorn backend.api:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+        --log-level info
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+    ports:
+      - "5433:80"
+    env_file:
+      - .env
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  pg_data:
+  pgadmin_data:
